@@ -1,0 +1,34 @@
+{
+  "train_files": 707,
+  "test_files": 180,
+  "image_records": 1154,
+  "physical_images": 707,
+  "annotations": 8199,
+  "annotation_sets_per_image": {
+    "1": 411,
+    "2": 145,
+    "3": 151
+  },
+  "category_counts": {
+    "1": 2535,
+    "2": 2590,
+    "3": 3074
+  },
+  "observatory_train": {
+    "Bh": 118,
+    "Ch": 125,
+    "Lh": 127,
+    "Mh": 125,
+    "Th": 110,
+    "Uh": 102
+  },
+  "observatory_test": {
+    "Bh": 33,
+    "Ch": 33,
+    "Lh": 34,
+    "Mh": 26,
+    "Th": 27,
+    "Uh": 27
+  },
+  "errors": []
+}

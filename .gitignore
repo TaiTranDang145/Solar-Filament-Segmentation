@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+filament-segmentation-2026/
+solar-filament-source*.zip
+artifacts/fold-*/
+artifacts/*.csv
+artifacts/*.pt
+artifacts/*.run.json
