@@ -68,10 +68,10 @@ counts, areas, and runtime.
 ## Run on Kaggle
 
 Open [notebooks/kaggle_pipeline.ipynb](notebooks/kaggle_pipeline.ipynb), attach
-the `filament-segmentation-2026` competition data, enable a GPU, and make this
-repository available in the notebook working directory or as an attached
-dataset. The notebook discovers the competition directory, audits it, trains
-fold 0, creates `submission.csv`, and validates the result.
+the `filament-segmentation-2026` competition data, enable a GPU and Internet,
+then run all cells. The notebook clones or pulls this repository, discovers the
+competition directory, audits it, trains fold 0, creates `submission.csv`, and
+validates the result.
 
 ## What is measured
 
