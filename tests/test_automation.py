@@ -253,9 +253,49 @@ class AutomationLoopTests(unittest.TestCase):
                         str(root / "runs"),
                     ]
                 )
-
         self.assertEqual(exit_code, 0)
         self.assertEqual(json.loads(output.getvalue())["status"], "dry_run")
+
+    def test_cli_selects_one_named_experiment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            experiments = root / "experiments.json"
+            experiments.write_text(
+                json.dumps([{"name": "first"}, {"name": "second"}])
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                exit_code = main(
+                    [
+                        "automate",
+                        "--kernel",
+                        "taitrandang/solar-filament-automation",
+                        "--kernel-dir",
+                        str(root),
+                        "--experiments",
+                        str(experiments),
+                        "--experiment",
+                        "second",
+                        "--work-dir",
+                        str(root / "runs"),
+                    ]
+                )
+            with self.assertRaisesRegex(ValueError, "unknown experiment: missing"):
+                main(
+                    [
+                        "automate",
+                        "--kernel",
+                        "taitrandang/solar-filament-automation",
+                        "--experiments",
+                        str(experiments),
+                        "--experiment",
+                        "missing",
+                    ]
+                )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["planned_experiments"], ["second"])
 
     def test_kaggle_notebook_emits_the_controller_candidate_contract(self):
         root = Path(__file__).parents[1]

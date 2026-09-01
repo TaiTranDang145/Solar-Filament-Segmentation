@@ -56,6 +56,7 @@ def _parser() -> argparse.ArgumentParser:
     automate.add_argument("--competition", default="filament-segmentation-2026")
     automate.add_argument("--kernel-dir", default="automation/kaggle")
     automate.add_argument("--experiments", default="automation/experiments.json")
+    automate.add_argument("--experiment")
     automate.add_argument("--work-dir", default="artifacts/automation")
     automate.add_argument("--best-pq", type=float, default=0.1484172851438538)
     automate.add_argument("--min-delta", type=float, default=0.001)
@@ -130,6 +131,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "automate":
         from .automation import AutomationConfig, load_experiments, run_automation
 
+        experiments = load_experiments(args.experiments)
+        if args.experiment:
+            experiments = [item for item in experiments if item.name == args.experiment]
+            if not experiments:
+                raise ValueError(f"unknown experiment: {args.experiment}")
         result = run_automation(
             AutomationConfig(
                 kernel=args.kernel,
@@ -144,7 +150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parity_tolerance=args.parity_tolerance,
                 poll_seconds=args.poll_seconds,
             ),
-            load_experiments(args.experiments),
+            experiments,
         )
         print(json.dumps(result, indent=2))
         return 0
