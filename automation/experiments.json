@@ -30,18 +30,23 @@
     "min_areas": [32, 64, 128]
   },
   {
-    "name": "lower-positive-weight-6",
+    "name": "native-efficientvit-unet",
     "training": {
       "fold": 0,
-      "epochs": 20,
-      "image_size": 768,
-      "batch_size": 2,
+      "epochs": 24,
+      "image_size": 1888,
+      "batch_size": 1,
       "num_workers": 2,
       "learning_rate": 0.0002,
-      "positive_weight": 6.0,
+      "weight_decay": 0.02,
+      "positive_weight": 1.0,
+      "model_name": "native_unet",
+      "gradient_accumulation": 4,
+      "tta": 4,
       "pretrained_backbone": true
     },
-    "thresholds": [0.5, 0.55, 0.6, 0.65],
-    "min_areas": [32, 64, 128]
+    "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7],
+    "min_areas": [100, 150, 250],
+    "close_kernels": [0, 5]
   }
 ]

@@ -17,6 +17,7 @@ class CandidateManifest:
     training_config: Mapping[str, Any]
     threshold: float
     min_area: int
+    close_kernel: int
     internal_pq: float
     self_evaluation_pq: float
     checkpoint: str
@@ -29,6 +30,7 @@ class CandidateManifest:
             "training_config": dict(self.training_config),
             "threshold": self.threshold,
             "min_area": self.min_area,
+            "close_kernel": self.close_kernel,
             "internal_pq": self.internal_pq,
             "self_evaluation_pq": self.self_evaluation_pq,
             "checkpoint": self.checkpoint,
@@ -44,6 +46,7 @@ class CandidateManifest:
                 training_config=dict(values["training_config"]),
                 threshold=float(values["threshold"]),
                 min_area=int(values["min_area"]),
+                close_kernel=int(values.get("close_kernel", 0)),
                 internal_pq=float(values["internal_pq"]),
                 self_evaluation_pq=float(values["self_evaluation_pq"]),
                 checkpoint=str(values["checkpoint"]),
@@ -55,6 +58,10 @@ class CandidateManifest:
             raise ValueError("threshold must be between 0 and 1")
         if candidate.min_area < 1:
             raise ValueError("min_area must be positive")
+        if candidate.close_kernel not in (0, 1) and (
+            candidate.close_kernel < 3 or candidate.close_kernel % 2 == 0
+        ):
+            raise ValueError("close_kernel must be zero, one, or an odd integer at least 3")
         for name in ("internal_pq", "self_evaluation_pq"):
             if not 0 <= getattr(candidate, name) <= 1:
                 raise ValueError(f"{name} must be between 0 and 1")

@@ -100,13 +100,18 @@ def score_instances(
 def evaluate_annotation_sets(
     entries: Iterable[tuple[Sequence[Any], Sequence[Any]]]
 ) -> EvaluationScore:
-    reports: list[ImageScore] = []
+    return combine_image_scores(
+        score_instances(ground_truth, predictions)
+        for ground_truth, predictions in entries
+    )
+
+
+def combine_image_scores(reports: Iterable[ImageScore]) -> EvaluationScore:
+    reports = list(reports)
     matched: list[float] = []
     positive_ious: list[float] = []
     positive_dice: list[float] = []
-    for ground_truth, predictions in entries:
-        report = score_instances(ground_truth, predictions)
-        reports.append(report)
+    for report in reports:
         matched.extend(report.matched_ious)
         positive_ious.extend(report.positive_ious)
         positive_dice.extend(report.positive_dice)

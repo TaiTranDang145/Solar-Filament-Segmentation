@@ -37,6 +37,10 @@ def _parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--positive-weight", type=float, default=12.0)
     train_parser.add_argument("--threshold", type=float, default=0.5)
     train_parser.add_argument("--min-area", type=int, default=32)
+    train_parser.add_argument("--close-kernel", type=int, default=0)
+    train_parser.add_argument("--model-name", default="deeplabv3_resnet50")
+    train_parser.add_argument("--gradient-accumulation", type=int, default=1)
+    train_parser.add_argument("--tta", type=int, default=1)
     train_parser.add_argument(
         "--pretrained-backbone", action=argparse.BooleanOptionalAction, default=True
     )
@@ -105,6 +109,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             positive_weight=args.positive_weight,
             threshold=args.threshold,
             min_area=args.min_area,
+            close_kernel=args.close_kernel,
+            model_name=args.model_name,
+            gradient_accumulation=args.gradient_accumulation,
+            tta=args.tta,
             pretrained_backbone=args.pretrained_backbone,
         )
         print(train(config))

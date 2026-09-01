@@ -15,7 +15,11 @@ from solar_filament.automation import (
 from solar_filament.cli import main
 from solar_filament.metrics import evaluate_annotation_sets
 from solar_filament.self_evaluation import organizer_self_evaluation
-from solar_filament.tuning import PostprocessingScore, choose_best_postprocessing
+from solar_filament.tuning import (
+    PostprocessingScore,
+    choose_best_postprocessing,
+    score_postprocessing_grid,
+)
 
 
 def candidate(**overrides):
@@ -63,6 +67,8 @@ class CandidateGateTests(unittest.TestCase):
             candidate(threshold=1.01)
         with self.assertRaisesRegex(ValueError, "min_area"):
             candidate(min_area=0)
+        with self.assertRaisesRegex(ValueError, "close_kernel"):
+            candidate(close_kernel=2)
         with self.assertRaisesRegex(ValueError, "internal_pq"):
             candidate(internal_pq=-0.01)
 
@@ -99,6 +105,24 @@ class CandidateGateTests(unittest.TestCase):
     def test_tuning_rejects_empty_candidate_grid(self):
         with self.assertRaisesRegex(ValueError, "candidate"):
             choose_best_postprocessing([])
+
+    def test_postprocessing_grid_can_promote_morphological_closing(self):
+        import numpy as np
+
+        probability = np.zeros((9, 9), dtype=np.float32)
+        probability[3:6, 1:3] = 1
+        probability[3:6, 4:6] = 1
+        ground_truth = np.zeros((9, 9), dtype=np.uint8)
+        ground_truth[3:6, 1:6] = 1
+
+        scores = score_postprocessing_grid(
+            [([[ground_truth]], probability)],
+            thresholds=[0.5],
+            min_areas=[1],
+            close_kernels=[0, 3],
+        )
+
+        self.assertEqual(choose_best_postprocessing(scores).close_kernel, 3)
 
 
 class RecordingRunner:
@@ -311,6 +335,8 @@ class AutomationLoopTests(unittest.TestCase):
         self.assertIn("organizer", source.lower())
         self.assertIn("candidate.json", source)
         self.assertIn("infer_directory", source)
+        self.assertIn("timm==1.0.29", source)
+        self.assertIn("close_kernels", source)
         self.assertTrue(metadata["enable_gpu"])
         self.assertIn("filament-segmentation-2026", metadata["competition_sources"])
 

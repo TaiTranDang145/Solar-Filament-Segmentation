@@ -34,6 +34,17 @@ class MaskPipelineTests(unittest.TestCase):
         self.assertEqual(len(masks), 1)
         self.assertEqual(int(masks[0].sum()), 2)
 
+    def test_connected_components_can_close_a_small_gap(self):
+        probabilities = np.zeros((9, 9), dtype=np.float32)
+        probabilities[3:6, 1:3] = 1
+        probabilities[3:6, 4:6] = 1
+
+        separate = connected_components(probabilities, min_area=1)
+        joined = connected_components(probabilities, min_area=1, close_kernel=3)
+
+        self.assertEqual(len(separate), 2)
+        self.assertEqual(len(joined), 1)
+
     def test_coco_rle_round_trip_preserves_asymmetric_mask(self):
         mask = np.zeros((4, 5), dtype=np.uint8)
         mask[0, 3] = 1

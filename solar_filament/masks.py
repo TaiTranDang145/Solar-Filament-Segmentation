@@ -31,6 +31,7 @@ def connected_components(
     threshold: float = 0.5,
     min_area: int = 32,
     connectivity: int = 8,
+    close_kernel: int = 0,
 ) -> list[np.ndarray]:
     if probabilities.ndim != 2:
         raise ValueError("probabilities must have shape (height, width)")
@@ -38,8 +39,15 @@ def connected_components(
         raise ValueError("connectivity must be 4 or 8")
     if min_area < 1:
         raise ValueError("min_area must be at least 1")
+    if close_kernel not in (0, 1) and (close_kernel < 3 or close_kernel % 2 == 0):
+        raise ValueError("close_kernel must be zero, one, or an odd integer at least 3")
 
     binary = (probabilities >= threshold).astype(np.uint8)
+    if close_kernel > 1:
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (close_kernel, close_kernel)
+        )
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
     count, labels = cv2.connectedComponents(binary, connectivity=connectivity)
     instances: list[np.ndarray] = []
     for label in range(1, count):

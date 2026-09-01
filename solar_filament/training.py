@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -27,10 +27,26 @@ class TrainConfig:
     threshold: float = 0.5
     min_area: int = 32
     pretrained_backbone: bool = True
+    model_name: str = "deeplabv3_resnet50"
+    gradient_accumulation: int = 1
+    tta: int = 1
+    close_kernel: int = 0
 
     def __post_init__(self) -> None:
-        if self.batch_size < 2:
+        if self.model_name not in ("deeplabv3_resnet50", "native_unet"):
+            raise ValueError(f"unknown model_name: {self.model_name}")
+        if self.batch_size < 2 and self.model_name == "deeplabv3_resnet50":
             raise ValueError("batch_size must be at least 2 for DeepLabV3 BatchNorm")
+        if self.batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        if self.gradient_accumulation < 1:
+            raise ValueError("gradient_accumulation must be positive")
+        if self.tta not in (1, 4, 8):
+            raise ValueError("tta must be 1, 4, or 8")
+        if self.close_kernel not in (0, 1) and (
+            self.close_kernel < 3 or self.close_kernel % 2 == 0
+        ):
+            raise ValueError("close_kernel must be zero, one, or an odd integer at least 3")
 
 
 def _stable_index(value: str, modulo: int) -> int:
@@ -52,12 +68,14 @@ class FilamentDataset:
         image_size: int,
         seed: int,
         augment: bool,
+        native: bool = False,
     ) -> None:
         self.records = list(records)
         self.image_dir = Path(image_dir)
         self.image_size = image_size
         self.seed = seed
         self.augment = augment
+        self.native = native
         self.epoch = 0
 
     def __len__(self) -> int:
@@ -78,17 +96,30 @@ class FilamentDataset:
         record = self.records[index]
         selected = select_annotation_set(record, self.epoch, self.seed)
         with Image.open(self.image_dir / record.file_name) as source:
-            image = transform.pil_to_tensor(source.convert("L")).float() / 255.0
+            source = source.convert("L")
+            if self.native:
+                from .preprocessing import native_crop
+
+                image = torch.from_numpy(
+                    native_crop(np.asarray(source), self.image_size)
+                ).unsqueeze(0)
+            else:
+                image = transform.pil_to_tensor(source).float() / 255.0
         instances = rasterize_instances(selected.annotations, record.height, record.width)
         target_array = semantic_union(instances, record.height, record.width)
         target = torch.from_numpy(np.asarray(target_array)).unsqueeze(0).float()
-        image = image.repeat(3, 1, 1)
-        image = transform.resize(image, [self.image_size, self.image_size], antialias=True)
-        target = transform.resize(
-            target,
-            [self.image_size, self.image_size],
-            interpolation=InterpolationMode.NEAREST,
-        )
+        if self.native:
+            top = (record.height - self.image_size) // 2
+            left = (record.width - self.image_size) // 2
+            target = target[:, top : top + self.image_size, left : left + self.image_size]
+        else:
+            image = image.repeat(3, 1, 1)
+            image = transform.resize(image, [self.image_size, self.image_size], antialias=True)
+            target = transform.resize(
+                target,
+                [self.image_size, self.image_size],
+                interpolation=InterpolationMode.NEAREST,
+            )
 
         if self.augment:
             code = _stable_index(
@@ -130,6 +161,24 @@ def build_training_loader(dataset, config: TrainConfig):
     )
 
 
+def optimizer_step_batches(batch_count: int, accumulation: int) -> tuple[int, ...]:
+    if batch_count < 0 or accumulation < 1:
+        raise ValueError("batch_count must not be negative and accumulation must be positive")
+    steps = list(range(accumulation - 1, batch_count, accumulation))
+    if batch_count and (not steps or steps[-1] != batch_count - 1):
+        steps.append(batch_count - 1)
+    return tuple(steps)
+
+
+def gradient_divisor(batch_index: int, batch_count: int, accumulation: int) -> int:
+    if not 0 <= batch_index < batch_count or accumulation < 1:
+        raise ValueError("batch_index must identify a batch and accumulation must be positive")
+    remainder = batch_count % accumulation
+    if remainder and batch_index >= batch_count - remainder:
+        return remainder
+    return accumulation
+
+
 def _set_seed(seed: int) -> None:
     random.seed(seed)
     try:
@@ -168,6 +217,9 @@ def prediction_entries(model, records: Sequence[ImageRecord], image_dir: Path, c
             threshold=config.threshold,
             min_area=config.min_area,
             device=device,
+            native=config.model_name == "native_unet",
+            tta=config.tta,
+            close_kernel=config.close_kernel,
         )
         for annotation_set in record.annotation_sets:
             ground_truth = rasterize_instances(
@@ -198,11 +250,16 @@ def train(config: TrainConfig) -> Path:
     )
     train_records, validation_records, image_dir = _records(config)
     dataset = FilamentDataset(
-        train_records, image_dir, config.image_size, config.seed, augment=True
+        train_records,
+        image_dir,
+        config.image_size,
+        config.seed,
+        augment=True,
+        native=config.model_name == "native_unet",
     )
     loader = build_training_loader(dataset, config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(config.pretrained_backbone).to(device)
+    model = build_model(config.pretrained_backbone, config.model_name).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
@@ -214,18 +271,30 @@ def train(config: TrainConfig) -> Path:
         dataset.set_epoch(epoch)
         model.train()
         total_loss = 0.0
-        for images, targets, _ in loader:
+        optimizer.zero_grad(set_to_none=True)
+        update_batches = set(
+            optimizer_step_batches(len(loader), config.gradient_accumulation)
+        )
+        for batch_index, (images, targets, _) in enumerate(loader):
             images, targets = images.to(device), targets.to(device)
-            optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast(device_type=device.type, enabled=device.type == "cuda"):
                 logits = model(images)["out"]
                 loss = segmentation_loss(logits, targets, config.positive_weight)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            scaler.scale(
+                loss
+                / gradient_divisor(
+                    batch_index, len(loader), config.gradient_accumulation
+                )
+            ).backward()
+            if batch_index in update_batches:
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
             total_loss += float(loss.detach()) * images.shape[0]
 
-        report = evaluate_model(model, validation_records, image_dir, config, device)
+        report = evaluate_model(
+            model, validation_records, image_dir, replace(config, tta=1), device
+        )
         epoch_report: dict[str, Any] = {
             "epoch": epoch + 1,
             "train_loss": total_loss / len(dataset),
