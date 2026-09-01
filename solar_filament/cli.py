@@ -50,6 +50,20 @@ def _parser() -> argparse.ArgumentParser:
     validate = commands.add_parser("validate-submission", help="decode-audit a CSV")
     validate.add_argument("submission")
     validate.add_argument("--image-dir")
+
+    automate = commands.add_parser("automate", help="run a bounded GitHub/Kaggle experiment loop")
+    automate.add_argument("--kernel", required=True)
+    automate.add_argument("--competition", default="filament-segmentation-2026")
+    automate.add_argument("--kernel-dir", default="automation/kaggle")
+    automate.add_argument("--experiments", default="automation/experiments.json")
+    automate.add_argument("--work-dir", default="artifacts/automation")
+    automate.add_argument("--best-pq", type=float, default=0.1484172851438538)
+    automate.add_argument("--min-delta", type=float, default=0.001)
+    automate.add_argument("--parity-tolerance", type=float, default=1e-6)
+    automate.add_argument("--max-runs", type=int, default=1)
+    automate.add_argument("--max-submissions", type=int, default=1)
+    automate.add_argument("--poll-seconds", type=float, default=30)
+    automate.add_argument("--execute", action="store_true")
     return parser
 
 
@@ -113,4 +127,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = validate_submission(args.submission, expected_stems=expected)
         print(json.dumps(asdict(report), indent=2))
         return 1 if report.errors else 0
+    if args.command == "automate":
+        from .automation import AutomationConfig, load_experiments, run_automation
+
+        result = run_automation(
+            AutomationConfig(
+                kernel=args.kernel,
+                competition=args.competition,
+                kernel_dir=Path(args.kernel_dir),
+                work_dir=Path(args.work_dir),
+                execute=args.execute,
+                max_runs=args.max_runs,
+                max_submissions=args.max_submissions,
+                best_pq=args.best_pq,
+                min_delta=args.min_delta,
+                parity_tolerance=args.parity_tolerance,
+                poll_seconds=args.poll_seconds,
+            ),
+            load_experiments(args.experiments),
+        )
+        print(json.dumps(result, indent=2))
+        return 0
     raise AssertionError(f"unhandled command: {args.command}")

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "baseline-tuned-postprocessing",
+    "training": {
+      "fold": 0,
+      "epochs": 20,
+      "image_size": 768,
+      "batch_size": 2,
+      "num_workers": 2,
+      "learning_rate": 0.0002,
+      "positive_weight": 12.0,
+      "pretrained_backbone": true
+    },
+    "thresholds": [0.5, 0.55, 0.6, 0.65],
+    "min_areas": [32, 64, 128]
+  },
+  {
+    "name": "lower-positive-weight-8",
+    "training": {
+      "fold": 0,
+      "epochs": 20,
+      "image_size": 768,
+      "batch_size": 2,
+      "num_workers": 2,
+      "learning_rate": 0.0002,
+      "positive_weight": 8.0,
+      "pretrained_backbone": true
+    },
+    "thresholds": [0.5, 0.55, 0.6, 0.65],
+    "min_areas": [32, 64, 128]
+  },
+  {
+    "name": "lower-positive-weight-6",
+    "training": {
+      "fold": 0,
+      "epochs": 20,
+      "image_size": 768,
+      "batch_size": 2,
+      "num_workers": 2,
+      "learning_rate": 0.0002,
+      "positive_weight": 6.0,
+      "pretrained_backbone": true
+    },
+    "thresholds": [0.5, 0.55, 0.6, 0.65],
+    "min_areas": [32, 64, 128]
+  }
+]

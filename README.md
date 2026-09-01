@@ -73,6 +73,44 @@ then run all cells. The notebook clones or pulls this repository, discovers the
 competition directory, audits it, trains fold 0, creates `submission.csv`, and
 validates the result.
 
+## Automated Kaggle loop
+
+Authenticate the Kaggle CLI once without putting a token in this repository:
+
+```bash
+kaggle auth login
+```
+
+Preview the bounded run (the default is dry-run and changes nothing):
+
+```bash
+solar-filament automate \
+  --kernel taitrandang/solar-filament-automation
+```
+
+Dispatch one GPU run and allow at most one improved submission:
+
+```bash
+solar-filament automate \
+  --kernel taitrandang/solar-filament-automation \
+  --max-runs 1 \
+  --max-submissions 1 \
+  --execute
+```
+
+Candidate training configurations and post-processing grids live in
+`automation/experiments.json`. Each Kaggle run trains one reviewed config,
+tunes `threshold`/`min_area`, checks its PQ against the organizer's
+Self_Evaluation_Notebook logic, and emits `candidate.json`. The controller only
+submits when both evaluators agree within `1e-6` and validation PQ improves by
+at least `0.001` over the configured baseline (currently `0.1484172851`). It
+then records the scored submission and leaderboard response in
+`artifacts/automation/state.json`.
+
+The controller requires a clean `main` equal to `origin/main`, never commits or
+force-pushes source, defaults to one run and one submission, and refuses to
+overwrite an unfinished remote state after an ambiguous failure.
+
 ## What is measured
 
 The organizer's self-evaluation notebook v6, retrieved on 31 August 2026,

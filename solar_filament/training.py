@@ -156,28 +156,30 @@ def _records(config: TrainConfig) -> tuple[list[ImageRecord], list[ImageRecord],
     return train_records, validation_records, data_root / "train" / "train_images"
 
 
-def evaluate_model(model, records: Sequence[ImageRecord], image_dir: Path, config: TrainConfig, device):
+def prediction_entries(model, records: Sequence[ImageRecord], image_dir: Path, config: TrainConfig, device):
     from .inference import predict_image
     from .masks import rasterize_instances
+
+    for record in records:
+        predictions, _ = predict_image(
+            model,
+            image_dir / record.file_name,
+            image_size=config.image_size,
+            threshold=config.threshold,
+            min_area=config.min_area,
+            device=device,
+        )
+        for annotation_set in record.annotation_sets:
+            ground_truth = rasterize_instances(
+                annotation_set.annotations, height=record.height, width=record.width
+            )
+            yield ground_truth, predictions
+
+
+def evaluate_model(model, records: Sequence[ImageRecord], image_dir: Path, config: TrainConfig, device):
     from .metrics import evaluate_annotation_sets
 
-    def entries():
-        for record in records:
-            predictions, _ = predict_image(
-                model,
-                image_dir / record.file_name,
-                image_size=config.image_size,
-                threshold=config.threshold,
-                min_area=config.min_area,
-                device=device,
-            )
-            for annotation_set in record.annotation_sets:
-                ground_truth = rasterize_instances(
-                    annotation_set.annotations, height=record.height, width=record.width
-                )
-                yield ground_truth, predictions
-
-    return evaluate_annotation_sets(entries())
+    return evaluate_annotation_sets(prediction_entries(model, records, image_dir, config, device))
 
 
 def train(config: TrainConfig) -> Path:

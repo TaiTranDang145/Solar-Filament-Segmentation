@@ -1,11 +1,12 @@
-# Verification record — 31 August 2026
+# Verification record — 1 September 2026
 
 ## Final-tree checks
 
-- `python -m unittest discover -s tests -v`: 21 tests passed.
+- `python -m unittest discover -s tests -v`: 35 tests passed.
 - `python -m compileall -q solar_filament tests`: passed.
 - Package editable build and `solar-filament --help`: passed.
-- Notebook schema validation: 9 cells passed `nbformat.validate`.
+- Both Kaggle notebook files are valid nbformat 4 JSON (11 pipeline cells and
+  8 automated-experiment cells).
 - Local Markdown file-link check: passed.
 - Full dataset audit: 707 train files, 180 test files, 1,154 image records,
   8,199 annotations, and zero contract errors.
@@ -14,6 +15,11 @@
   `(1, 64, 64)` target.
 - One real test image completed model inference, full-resolution connected
   components, COCO RLE encode, CSV write, and exact decode validation.
+- Kaggle T4 baseline completed 20 epochs: validation `official_pq=0.1484172851`;
+  its 1,712-instance submission scored `0.12` on the public leaderboard.
+- Automation dry-run planned one bounded experiment without making an external
+  call; fake-adapter integration tests cover kernel dispatch/output, gating,
+  submission, leaderboard capture, and unfinished-state protection.
 
 ## Manual mutation gate
 
@@ -25,9 +31,13 @@ high-value manual mutants were applied one at a time and reverted:
 | Official match `IoU > 0.5` changed to `>=` | strict threshold fixture | Killed |
 | Component area `>= min_area` changed to `>` | exact-boundary component fixture | Killed |
 | PQ false-positive weight `0.5` changed to `1.0` | fragmentation fixture | Killed |
+| Minimum improvement `<` changed to `<=` | exact `min_delta` boundary | Killed |
+| Evaluator mismatch `>` changed to `<` | disagreement gate | Killed |
+| Submission budget `>=` changed to `>` | bounded dispatch test | Killed |
+| Organizer IoU `>` changed to `>=` | cross-evaluator 0.5 boundary | Killed |
 
 ## Evidence boundary
 
-No full 20-epoch or five-fold GPU training was run in this local CPU
-environment. The Kaggle notebook owns that operational gate; its results must
-replace the `RESULT REQUIRED` fields in the report before final submission.
+The new automated kernel has not yet run on Kaggle. Its remaining operational
+gate is one authenticated `--execute` run; five-fold training remains outside
+the current bounded experiment scope.

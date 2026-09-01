@@ -6,6 +6,7 @@ __pycache__/
 filament-segmentation-2026/
 solar-filament-source*.zip
 artifacts/fold-*/
+artifacts/automation/
 artifacts/*.csv
 artifacts/*.pt
 artifacts/*.run.json
