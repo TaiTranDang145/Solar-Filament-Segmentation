@@ -275,7 +275,19 @@ def run_automation(
         _wait_for_kernel(config.kernel, config, runner, sleep)
 
         run_dir = config.work_dir / f"run-{state['runs']:03d}-{experiment.name}"
-        runner(["kaggle", "kernels", "output", config.kernel, "-p", str(run_dir), "--force"])
+        runner(
+            [
+                "kaggle",
+                "kernels",
+                "output",
+                config.kernel,
+                "-p",
+                str(run_dir),
+                "--force",
+                "--page-size",
+                "200",
+            ]
+        )
         manifest_path = _artifact(run_dir, "candidate.json")
         manifest = CandidateManifest.from_dict(json.loads(manifest_path.read_text()))
         if manifest.revision != revision or manifest.experiment != experiment.name:

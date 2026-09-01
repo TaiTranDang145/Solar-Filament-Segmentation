@@ -20,6 +20,10 @@
 - Automation dry-run planned one bounded experiment without making an external
   call; fake-adapter integration tests cover kernel dispatch/output, gating,
   submission, leaderboard capture, and unfinished-state protection.
+- The first automated T4 run selected `threshold=0.6`, `min_area=128`, reached
+  validation PQ `0.1744241482`, matched organizer PQ within `1.91e-11`, and
+  produced a decode-valid 1,580-instance submission. Public score improved from
+  `0.12` to `0.16` (rank 407 at 07:58 UTC).
 
 ## Manual mutation gate
 
@@ -38,6 +42,5 @@ high-value manual mutants were applied one at a time and reverted:
 
 ## Evidence boundary
 
-The new automated kernel has not yet run on Kaggle. Its remaining operational
-gate is one authenticated `--execute` run; five-fold training remains outside
-the current bounded experiment scope.
+The automated kernel has completed one authenticated end-to-end run. Five-fold
+training remains outside the current bounded experiment scope.

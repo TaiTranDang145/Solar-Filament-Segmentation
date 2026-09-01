@@ -177,6 +177,9 @@ class AutomationLoopTests(unittest.TestCase):
 
         commands = [" ".join(call) for call in runner.calls]
         self.assertLess(commands.index("git push origin main"), next(i for i, value in enumerate(commands) if "kernels push" in value))
+        output_command = next(call for call in runner.calls if call[:3] == ["kaggle", "kernels", "output"])
+        self.assertIn("--page-size", output_command)
+        self.assertEqual(output_command[output_command.index("--page-size") + 1], "200")
         self.assertEqual(sum("competitions submit" in value for value in commands), 1)
         self.assertEqual(result["best_validation_pq"], 0.16)
         self.assertEqual(result["latest_public_score"], 0.17)

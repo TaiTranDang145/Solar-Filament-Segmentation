@@ -1,7 +1,7 @@
 # Plan: Bounded Kaggle experiment loop
 
 **Branch**: `main`
-**Status**: Active
+**Status**: Complete
 
 ## Goal
 
@@ -12,19 +12,19 @@ stops after a configured number of runs.
 
 ## Acceptance Criteria
 
-- [ ] Preflight rejects missing Kaggle auth, a dirty/unpushed Git tree, invalid
+- [x] Preflight rejects missing Kaggle auth, a dirty/unpushed Git tree, invalid
       limits, or a missing competition attachment before dispatching work.
-- [ ] Every Kaggle run emits a machine-readable candidate manifest containing
+- [x] Every Kaggle run emits a machine-readable candidate manifest containing
       the Git SHA, training config, tuned threshold/min-area, internal PQ,
       organizer self-evaluation PQ, checkpoint, and submission paths.
-- [ ] A candidate is eligible only when both evaluators agree within tolerance
+- [x] A candidate is eligible only when both evaluators agree within tolerance
       and validation PQ exceeds the saved best by the configured minimum delta.
-- [ ] Submission and GPU runs never exceed explicit per-invocation limits;
+- [x] Submission and GPU runs never exceed explicit per-invocation limits;
       failures stop the loop and resumable state records the last known action.
-- [ ] After an eligible submission, the controller polls Kaggle, records the
+- [x] After an eligible submission, the controller polls Kaggle, records the
       public score and rank when available, and continues only while candidates
       and run budget remain.
-- [ ] Dry-run is the default and performs no GitHub, kernel, or competition
+- [x] Dry-run is the default and performs no GitHub, kernel, or competition
       mutation; `--execute` is required for external state changes.
 
 ## Slices
@@ -77,4 +77,3 @@ post-processing sweep → organizer evaluator parity → test inference → outp
 - No force-push, no automatic merge, no secret in flags/config/logs.
 - Ambiguous remote mutations stop and require status reconciliation rather than
   blind retry.
-
