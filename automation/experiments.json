@@ -75,19 +75,19 @@
     "min_areas": [20, 50, 100]
   },
   {
-    "name": "instance-yolo11l-2048-direct",
+    "name": "instance-yolo11m-1792-direct",
     "pipeline": "instance",
     "training": {
       "fold": 0,
       "n_folds": 5,
       "seed": 2026,
-      "yolo_model": "yolo11l-seg.pt",
-      "image_size": 2048,
+      "yolo_model": "yolo11m-seg.pt",
+      "image_size": 1792,
       "batch_size": 1,
       "epochs": 40,
       "patience": 8,
       "num_workers": 2,
-      "mask_ratio": 2,
+      "mask_ratio": 4,
       "nms_iou": 0.3,
       "max_det": 100,
       "refiner_epochs": 0
