@@ -48,5 +48,30 @@
     "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7],
     "min_areas": [100, 150, 250],
     "close_kernels": [0, 5]
+  },
+  {
+    "name": "instance-yolo11s-refiner",
+    "pipeline": "instance",
+    "training": {
+      "fold": 0,
+      "n_folds": 5,
+      "seed": 2026,
+      "yolo_model": "yolo11s-seg.pt",
+      "image_size": 1024,
+      "batch_size": 4,
+      "epochs": 30,
+      "patience": 5,
+      "num_workers": 2,
+      "mask_ratio": 2,
+      "crop_size": 256,
+      "crop_context": 1.8,
+      "min_crop": 96,
+      "refiner_epochs": 8,
+      "refiner_batch_size": 16,
+      "refiner_learning_rate": 0.0003
+    },
+    "confidence_thresholds": [0.1, 0.15, 0.25, 0.35],
+    "mask_thresholds": [0.55, 0.65, 0.75],
+    "min_areas": [20, 50, 100]
   }
 ]

@@ -336,6 +336,8 @@ class AutomationLoopTests(unittest.TestCase):
         self.assertIn("candidate.json", source)
         self.assertIn("infer_directory", source)
         self.assertIn("timm==1.0.29", source)
+        self.assertIn("ultralytics==8.4.115", source)
+        self.assertIn("run_instance_experiment", source)
         self.assertIn("close_kernels", source)
         self.assertTrue(metadata["enable_gpu"])
         self.assertIn("filament-segmentation-2026", metadata["competition_sources"])
