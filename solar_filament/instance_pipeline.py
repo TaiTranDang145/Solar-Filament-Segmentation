@@ -27,6 +27,8 @@ class InstanceConfig:
     patience: int = 5
     num_workers: int = 2
     mask_ratio: int = 2
+    nms_iou: float = 0.3
+    max_det: int = 100
     crop_size: int = 256
     crop_context: float = 1.8
     min_crop: int = 96
@@ -45,14 +47,16 @@ class InstanceConfig:
             self.crop_size,
             self.crop_context,
             self.min_crop,
-            self.refiner_epochs,
             self.refiner_batch_size,
             self.refiner_learning_rate,
+            self.max_det,
         )
         if min(positive) <= 0:
             raise ValueError("training sizes must be positive")
-        if self.patience < 0 or self.num_workers < 0:
-            raise ValueError("patience and num_workers must not be negative")
+        if self.patience < 0 or self.num_workers < 0 or self.refiner_epochs < 0:
+            raise ValueError("schedules must not be negative")
+        if not 0 <= self.nms_iou <= 1:
+            raise ValueError("nms_iou must be between zero and one")
 
 
 @dataclass(frozen=True)
@@ -65,7 +69,7 @@ class InstanceOutcome:
     fp: int
     fn: int
     yolo_checkpoint: Path
-    refiner_checkpoint: Path
+    refiner_checkpoint: Path | None
     submission: Path
 
 
@@ -165,9 +169,12 @@ def threshold_instances(
     ):
         raise ValueError("proposal values must have equal lengths")
     instances = []
-    for confidence, yolo_mask, probability in zip(
-        confidences, yolo_masks, refined_probabilities
-    ):
+    proposals = sorted(
+        zip(confidences, yolo_masks, refined_probabilities),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    for confidence, yolo_mask, probability in proposals:
         if confidence < confidence_threshold:
             continue
         refined = (np.asarray(probability) >= mask_threshold).astype(np.uint8)
@@ -175,7 +182,9 @@ def threshold_instances(
             refined = np.asarray(yolo_mask, dtype=np.uint8)
         if int(refined.sum()) >= min_area:
             instances.append(refined)
-    return instances
+    from .submission import remove_overlaps
+
+    return remove_overlaps(instances, min_area=min_area)
 
 
 def _records(config: InstanceConfig):
@@ -394,6 +403,8 @@ def _predict_proposals(yolo, refiner, image_path: Path, config: InstanceConfig, 
         str(image_path),
         imgsz=config.image_size,
         conf=min_confidence,
+        iou=config.nms_iou,
+        max_det=config.max_det,
         agnostic_nms=True,
         retina_masks=True,
         verbose=False,
@@ -402,6 +413,8 @@ def _predict_proposals(yolo, refiner, image_path: Path, config: InstanceConfig, 
         return [], [], []
     yolo_masks = [mask.cpu().numpy().astype(np.uint8) for mask in result.masks.data]
     confidences = result.boxes.conf.cpu().tolist()
+    if refiner is None:
+        return confidences, yolo_masks, [mask.astype(np.float32) for mask in yolo_masks]
     probabilities = []
     device = next(refiner.parameters()).device
     with torch.inference_mode():
@@ -587,13 +600,16 @@ def run_instance_experiment(
     yolo_checkpoint = output_dir / "best-yolo.pt"
     shutil.copy2(yolo.trainer.best, yolo_checkpoint)
     yolo = YOLO(str(yolo_checkpoint))
-    refiner_checkpoint = output_dir / "best-refiner.pt"
-    refiner = _train_refiner(
-        _crop_arrays(train_records, image_dir, config),
-        _crop_arrays(validation_records, image_dir, config),
-        config,
-        refiner_checkpoint,
-    )
+    refiner_checkpoint = None
+    refiner = None
+    if config.refiner_epochs:
+        refiner_checkpoint = output_dir / "best-refiner.pt"
+        refiner = _train_refiner(
+            _crop_arrays(train_records, image_dir, config),
+            _crop_arrays(validation_records, image_dir, config),
+            config,
+            refiner_checkpoint,
+        )
     scores = _score_grid(
         yolo,
         refiner,
@@ -648,7 +664,7 @@ def run_instance_experiment(
             {
                 **asdict(outcome),
                 "yolo_checkpoint": str(yolo_checkpoint),
-                "refiner_checkpoint": str(refiner_checkpoint),
+                "refiner_checkpoint": str(refiner_checkpoint) if refiner_checkpoint else None,
                 "submission": str(submission),
                 "grid": [
                     {

@@ -16,9 +16,8 @@ from solar_filament.instance_pipeline import (
 
 
 class LegalInstanceDatasetTests(unittest.TestCase):
-    def test_instance_config_rejects_a_zero_refiner_schedule(self):
-        with self.assertRaisesRegex(ValueError, "positive"):
-            InstanceConfig(data_root="unused", refiner_epochs=0)
+    def test_instance_config_allows_skipping_the_refiner(self):
+        self.assertEqual(InstanceConfig(data_root="unused", refiner_epochs=0).refiner_epochs, 0)
 
     def test_selects_the_most_complete_segmentation_set_deterministically(self):
         record = ImageRecord(
@@ -130,8 +129,24 @@ class LegalInstanceDatasetTests(unittest.TestCase):
         )
 
         self.assertEqual(len(instances), 2)
-        np.testing.assert_array_equal(instances[0], masks[0])
-        np.testing.assert_array_equal(instances[1], masks[2])
+        np.testing.assert_array_equal(instances[0], masks[2])
+        np.testing.assert_array_equal(instances[1], masks[0])
+
+    def test_instance_thresholds_resolve_overlap_by_confidence_before_scoring(self):
+        low = np.array([[1, 1], [0, 0]], dtype=np.uint8)
+        high = np.array([[0, 1], [0, 1]], dtype=np.uint8)
+
+        instances = threshold_instances(
+            confidences=[0.4, 0.9],
+            yolo_masks=[low, high],
+            refined_probabilities=[low, high],
+            confidence_threshold=0.1,
+            mask_threshold=0.5,
+            min_area=1,
+        )
+
+        np.testing.assert_array_equal(instances[0], high)
+        np.testing.assert_array_equal(instances[1], np.array([[1, 0], [0, 0]]))
 
 
 if __name__ == "__main__":

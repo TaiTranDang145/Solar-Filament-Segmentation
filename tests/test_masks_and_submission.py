@@ -66,6 +66,22 @@ class SubmissionTests(unittest.TestCase):
 
         self.assertEqual([row["filament_id"] for row in rows], ["20110101000000Bh_1", "20110101000000Bh_2"])
 
+    def test_submission_rows_remove_overlaps_and_empty_remainders(self):
+        first = np.array([[1, 1], [0, 0]], dtype=np.uint8)
+        overlapping = np.array([[0, 1], [0, 1]], dtype=np.uint8)
+        duplicate = first.copy()
+
+        rows = build_submission_rows(
+            {"20110101000000Bh": [first, overlapping, duplicate]}
+        )
+
+        masks = [
+            decode_mask(row["segmentation_rle"], height=2, width=2)
+            for row in rows
+        ]
+        self.assertEqual([row["filament_id"] for row in rows], ["20110101000000Bh_1", "20110101000000Bh_2"])
+        self.assertFalse(np.logical_and(masks[0], masks[1]).any())
+
     def test_written_submission_validates_and_decodes(self):
         mask = np.zeros((4, 5), dtype=np.uint8)
         mask[1:3, 2] = 1

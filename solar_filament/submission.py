@@ -20,12 +20,37 @@ class SubmissionReport:
     errors: tuple[str, ...]
 
 
+def remove_overlaps(
+    masks: Sequence[np.ndarray], min_area: int = 1
+) -> list[np.ndarray]:
+    if min_area < 1:
+        raise ValueError("min_area must be positive")
+    occupied: np.ndarray | None = None
+    result: list[np.ndarray] = []
+    for value in masks:
+        mask = np.asarray(value, dtype=bool)
+        if occupied is None:
+            occupied = np.zeros_like(mask)
+        if mask.shape != occupied.shape:
+            raise ValueError("inconsistent mask shapes")
+        mask = mask & ~occupied
+        if int(mask.sum()) < min_area:
+            continue
+        occupied |= mask
+        result.append(mask.astype(np.uint8))
+    return result
+
+
 def build_submission_rows(
     predictions: Mapping[str, Sequence[np.ndarray]],
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for image_stem in sorted(predictions):
-        for index, mask in enumerate(predictions[image_stem], start=1):
+        try:
+            masks = remove_overlaps(predictions[image_stem])
+        except ValueError as exc:
+            raise ValueError(f"{exc} for {image_stem}") from exc
+        for index, mask in enumerate(masks, start=1):
             rows.append(
                 {
                     "filament_id": f"{image_stem}_{index}",
