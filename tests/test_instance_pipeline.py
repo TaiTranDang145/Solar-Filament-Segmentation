@@ -7,6 +7,7 @@ import numpy as np
 from solar_filament.data import AnnotationSet, ImageRecord
 from solar_filament.instance_pipeline import (
     InstanceConfig,
+    _refiner_channels,
     select_complete_annotation_set,
     prepare_yolo_dataset,
     square_bounds,
@@ -18,6 +19,20 @@ from solar_filament.instance_pipeline import (
 class LegalInstanceDatasetTests(unittest.TestCase):
     def test_instance_config_allows_skipping_the_refiner(self):
         self.assertEqual(InstanceConfig(data_root="unused", refiner_epochs=0).refiner_epochs, 0)
+
+    def test_instance_config_allows_reusing_a_yolo_checkpoint(self):
+        self.assertEqual(InstanceConfig(data_root="unused", epochs=0).epochs, 0)
+
+    def test_refiner_input_contains_image_contrast_and_seed_box(self):
+        image = np.arange(64, dtype=np.uint8).reshape(8, 8)
+        seed = np.zeros((8, 8), dtype=np.uint8)
+        seed[2:4, 3:6] = 1
+
+        channels = _refiner_channels(image, seed, size=8)
+
+        self.assertEqual(channels.shape, (3, 8, 8))
+        self.assertTrue(np.all(channels[2, 2:4, 3:6] == 255))
+        self.assertEqual(int(np.count_nonzero(channels[2])), 6)
 
     def test_selects_the_most_complete_segmentation_set_deterministically(self):
         record = ImageRecord(

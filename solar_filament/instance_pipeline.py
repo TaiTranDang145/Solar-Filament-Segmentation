@@ -42,7 +42,6 @@ class InstanceConfig:
         positive = (
             self.image_size,
             self.batch_size,
-            self.epochs,
             self.mask_ratio,
             self.crop_size,
             self.crop_context,
@@ -53,7 +52,12 @@ class InstanceConfig:
         )
         if min(positive) <= 0:
             raise ValueError("training sizes must be positive")
-        if self.patience < 0 or self.num_workers < 0 or self.refiner_epochs < 0:
+        if (
+            self.epochs < 0
+            or self.patience < 0
+            or self.num_workers < 0
+            or self.refiner_epochs < 0
+        ):
             raise ValueError("schedules must not be negative")
         if not 0 <= self.nms_iou <= 1:
             raise ValueError("nms_iou must be between zero and one")
@@ -223,10 +227,10 @@ def _crop_arrays(
                 mask, config.crop_context, config.min_crop
             )
             images.append(
-                cv2.resize(
+                _refiner_channels(
                     image[top:bottom, left:right],
-                    (config.crop_size, config.crop_size),
-                    interpolation=cv2.INTER_LINEAR,
+                    mask[top:bottom, left:right],
+                    config.crop_size,
                 )
             )
             masks.append(
@@ -237,6 +241,21 @@ def _crop_arrays(
                 )
             )
     return np.stack(images), np.stack(masks)
+
+
+def _refiner_channels(
+    image: np.ndarray, seed: np.ndarray, size: int
+) -> np.ndarray:
+    import cv2
+
+    grayscale = cv2.resize(image, (size, size), interpolation=cv2.INTER_LINEAR)
+    contrast = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(grayscale)
+    resized_seed = cv2.resize(seed, (size, size), interpolation=cv2.INTER_NEAREST)
+    box = np.zeros((size, size), dtype=np.uint8)
+    ys, xs = np.where(resized_seed)
+    if len(xs):
+        box[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1] = 255
+    return np.stack((grayscale, contrast, box))
 
 
 def _build_refiner(pretrained: bool):
@@ -320,16 +339,17 @@ def _train_refiner(
             mask = torch.from_numpy(self.masks[index].copy()).float().unsqueeze(0)
             if self.augment:
                 rotations = random.randrange(4)
-                image = torch.rot90(image, rotations, (0, 1))
+                image = torch.rot90(image, rotations, (1, 2))
                 mask = torch.rot90(mask, rotations, (1, 2))
                 if random.random() < 0.5:
-                    image, mask = torch.flip(image, (1,)), torch.flip(mask, (2,))
-                image = torch.clamp(
-                    image ** random.uniform(0.85, 1.2) * random.uniform(0.9, 1.1),
+                    image, mask = torch.flip(image, (2,)), torch.flip(mask, (2,))
+                image[:2] = torch.clamp(
+                    image[:2] ** random.uniform(0.85, 1.2)
+                    * random.uniform(0.9, 1.1),
                     0,
                     1,
                 )
-            return image.unsqueeze(0).repeat(3, 1, 1), mask
+            return image, mask
 
     train_loader = DataLoader(
         CropDataset(train_arrays, True),
@@ -422,17 +442,15 @@ def _predict_proposals(yolo, refiner, image_path: Path, config: InstanceConfig, 
             left, top, right, bottom = square_bounds(
                 mask, config.crop_context, config.min_crop
             )
-            crop = cv2.resize(
+            crop = _refiner_channels(
                 image[top:bottom, left:right],
-                (config.crop_size, config.crop_size),
-                interpolation=cv2.INTER_LINEAR,
+                mask[top:bottom, left:right],
+                config.crop_size,
             )
             tensor = (
                 torch.from_numpy(crop)
                 .float()
                 .unsqueeze(0)
-                .unsqueeze(0)
-                .repeat(1, 3, 1, 1)
                 .to(device)
                 / 255
             )
@@ -574,31 +592,37 @@ def run_instance_experiment(
         image_dir,
         output_dir / "yolo-data",
     )
-    yolo = YOLO(config.yolo_model)
-    yolo.train(
-        data=str(data_yaml),
-        epochs=config.epochs,
-        imgsz=config.image_size,
-        batch=config.batch_size,
-        workers=config.num_workers,
-        device=0,
-        patience=config.patience,
-        seed=config.seed,
-        single_cls=True,
-        mask_ratio=config.mask_ratio,
-        overlap_mask=False,
-        hsv_h=0.0,
-        hsv_s=0.0,
-        hsv_v=0.3,
-        degrees=10,
-        scale=0.3,
-        mosaic=0.3,
-        close_mosaic=5,
-        project=str(output_dir / "yolo-runs"),
-        name="instance",
-    )
     yolo_checkpoint = output_dir / "best-yolo.pt"
-    shutil.copy2(yolo.trainer.best, yolo_checkpoint)
+    if config.epochs:
+        yolo = YOLO(config.yolo_model)
+        yolo.train(
+            data=str(data_yaml),
+            epochs=config.epochs,
+            imgsz=config.image_size,
+            batch=config.batch_size,
+            workers=config.num_workers,
+            device=0,
+            patience=config.patience,
+            seed=config.seed,
+            single_cls=True,
+            mask_ratio=config.mask_ratio,
+            overlap_mask=False,
+            hsv_h=0.0,
+            hsv_s=0.0,
+            hsv_v=0.3,
+            degrees=10,
+            scale=0.3,
+            mosaic=0.3,
+            close_mosaic=5,
+            project=str(output_dir / "yolo-runs"),
+            name="instance",
+        )
+        shutil.copy2(yolo.trainer.best, yolo_checkpoint)
+    else:
+        source = Path(config.yolo_model)
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        shutil.copy2(source, yolo_checkpoint)
     yolo = YOLO(str(yolo_checkpoint))
     refiner_checkpoint = None
     refiner = None
